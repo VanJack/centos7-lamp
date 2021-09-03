@@ -4,15 +4,17 @@ export PATH
 #==========================================================================#
 #   System Required:  CentOS 6+                                            #
 #   Description:  Yum Install LAMP(Linux + Apache + MySQL/MariaDB + PHP )  #
-#   Author: Teddysun <i@teddysun.com>                                      #
-#   Intro:  https://teddysun.com/lamp-yum                                  #
+#   Original Project by Teddysun:                                          #
+#           https://teddysun.com/lamp-yum                                  #
 #           https://github.com/teddysun/lamp-yum                           #
+#   Modified by: Vanjack                                                   #
+#   Github: https://github.com/VanJack/centos7-lamp                        #
 #==========================================================================#
-
 clear
-
+HORAINICIAL=$(date +%T)
+LOG="/var/log/$(echo $0 | cut -d'/' -f2)"
 # Current folder
-cur_dir=`pwd`
+cur_dir=`pwd` &>> $LOG
 
 # Make sure only root can run our script
 rootness(){
@@ -23,45 +25,71 @@ fi
 }
 
 # Disable selinux
+# Its will be reactivated at the end of the process
 disable_selinux(){
-if [ -s /etc/selinux/config ] && grep 'SELINUX=enforcing' /etc/selinux/config; then
-    sed -i 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/selinux/config
-    setenforce 0
+if [ -s /etc/selinux/config ] && grep 'SELINUX=enforcing' /etc/selinux/config; then &>> $LOG
+    sed -i 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/selinux/config &>> $LOG
+    setenforce 0 &>> $LOG
 fi
 }
 
 # Get public IP
 get_ip(){
-    local IP=$( ip addr | egrep -o '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | egrep -v "^192\.168|^172\.1[6-9]\.|^172\.2[0-9]\.|^172\.3[0-2]\.|^10\.|^127\.|^255\.|^0\." | head -n 1 )
-    [ -z ${IP} ] && IP=$( wget -qO- -t1 -T2 ipv4.icanhazip.com )
-    [ -z ${IP} ] && IP=$( wget -qO- -t1 -T2 ipinfo.io/ip )
-    [ ! -z ${IP} ] && echo ${IP} || echo
+    local IP=$( ip addr | egrep -o '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | egrep -v "^192\.168|^172\.1[6-9]\.|^172\.2[0-9]\.|^172\.3[0-2]\.|^10\.|^127\.|^255\.|^0\." | head -n 1 ) &>> $LOG
+    [ -z ${IP} ] && IP=$( wget -qO- -t1 -T2 ipv4.icanhazip.com ) &>> $LOG
+    [ -z ${IP} ] && IP=$( wget -qO- -t1 -T2 ipinfo.io/ip ) &>> $LOG
+    [ ! -z ${IP} ] && echo ${IP} || echo &>> $LOG
 }
 
 get_char(){
-    SAVEDSTTY=`stty -g`
-    stty -echo
-    stty cbreak
-    dd if=/dev/tty bs=1 count=1 2> /dev/null
-    stty -raw
-    stty echo
-    stty $SAVEDSTTY
+    SAVEDSTTY=`stty -g` &>> $LOG
+    stty -echo &>> $LOG
+    stty cbreak &>> $LOG
+    dd if=/dev/tty bs=1 count=1 2> /dev/null &>> $LOG
+    stty -raw &>> $LOG
+    stty echo &>> $LOG
+    stty $SAVEDSTTY &>> $LOG
 }
-
-# Pre-installation settings
+#===========================================Pre-installation settings===========================================
 pre_installation_settings(){
     echo
     echo "#############################################################"
     echo "# LAMP Auto yum Install Script for CentOS                   #"
     echo "# Intro: https://teddysun.com/lamp-yum                      #"
     echo "# Author: Teddysun <i@teddysun.com>                         #"
+    echo "# Modified by: Vanjack                                      #"                    
+    echo "# Github: https://github.com/VanJack/centos7-lamp           #"
     echo "#############################################################"
     echo
-    # Install Atomic repository
-    rpm -qa | grep "atomic-release" &>/dev/null
+    echo
+    echo "Installing repositories..."
+	#YUM UTILS
+	yum install yum-utils &>> $LOG
+    # Install Epel repository
+    rpm -qa | grep "epel-release" &>/dev/null &>> $LOG
     if [ $? -ne 0 ]; then
-        wget -qO- https://www.atomicorp.com/installers/atomic | bash
+        yum install epel-release | bash &>> $LOG
+        rpm -Uvh https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm | bash &>> $LOG
     fi
+	# Install REMI repository
+	rpm -qa | grep "remi-release" &>/dev/null &>> $LOG
+    if [ $? -ne 0 ]; then
+        rpm -Uvh https://rpms.remirepo.net/enterprise/remi-release-7.rpm | bash &>> $LOG
+    fi
+	# Install SCLs repository
+	rpm -qa | grep "scl-release" &>/dev/null &>> $LOG
+    if [ $? -ne 0 ]; then
+	yum install centos-release-scl	| bash &>> $LOG
+	fi
+	# Install IUS repository
+	rpm -qa | grep "ius-release" &>/dev/null &>> $LOG
+    if [ $? -ne 0 ]; then
+	yum install \
+		https://repo.ius.io/ius-release-el7.rpm \
+		https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm	| bash &>> $LOG
+		yum-config-manager --enable ius-testing &>> $LOG
+	fi
+	#
     echo "Getting Public IP address..."
     echo -e "Your main public IP is\t\033[32m$(get_ip)\033[0m"
     echo
@@ -69,12 +97,13 @@ pre_installation_settings(){
     while true
     do
     echo "Please choose a version of the Database:"
-    echo -e "\t\033[32m1\033[0m. Install MySQL-5.5(recommend)"
-    echo -e "\t\033[32m2\033[0m. Install MariaDB-5.5"
+    echo -e "\t\033[32m1\033[0m. Install MySQL-5.5"
+	echo -e "\t\033[32m2\033[0m. Install MySQL-8.0(recommend)"
+    echo -e "\t\033[32m3\033[0m. Install MariaDB-5.5"
     read -p "Please input a number:(Default 1) " DB_version
     [ -z "$DB_version" ] && DB_version=1
     case $DB_version in
-        1|2)
+        1|2|3)
         echo
         echo "---------------------------"
         echo "You choose = $DB_version"
@@ -83,7 +112,7 @@ pre_installation_settings(){
         break
         ;;
         *)
-        echo "Input error! Please only input number 1,2"
+        echo "Input error! Please only input number 1,2 or 3!"
     esac
     done
     # Set MySQL root password
@@ -104,11 +133,12 @@ pre_installation_settings(){
     echo -e "\t\033[32m1\033[0m. Install PHP-5.4"
     echo -e "\t\033[32m2\033[0m. Install PHP-5.5"
     echo -e "\t\033[32m3\033[0m. Install PHP-5.6"
-    echo -e "\t\033[32m4\033[0m. Install PHP-7.0"
+    echo -e "\t\033[32m4\033[0m. Install PHP-7.4"
+	echo -e "\t\033[32m5\033[0m. Install PHP-8.0"
     read -p "Please input a number:(Default 1) " PHP_version
     [ -z "$PHP_version" ] && PHP_version=1
     case $PHP_version in
-        1|2|3|4)
+        1|2|3|4|5)
         echo
         echo "---------------------------"
         echo "You choose = $PHP_version"
@@ -117,7 +147,7 @@ pre_installation_settings(){
         break
         ;;
         *)
-        echo "Input error! Please only input number 1,2,3,4"
+        echo "Input error! Please only input number 1,2,3,4 or 5"
     esac
     done
 
@@ -125,216 +155,208 @@ pre_installation_settings(){
     echo "Press any key to start...or Press Ctrl+C to cancel"
     char=`get_char`
     # Remove Packages
-    yum -y remove httpd*
-    yum -y remove mysql*
-    yum -y remove mariadb*
-    yum -y remove php*
+    yum -y remove httpd* &>> $LOG
+    yum -y remove mysql* &>> $LOG
+    yum -y remove mariadb* &>> $LOG
+    yum -y remove php* &>> $LOG
+    yum -y remove phpmyadmin* &>> $LOG
+
     # Set timezone
-    rm -f /etc/localtime
-    ln -s /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
-    yum -y install ntp
-    ntpdate -d cn.pool.ntp.org
-    ntpdate -v time.nist.gov
-    /sbin/hwclock -w
+    rm -f /etc/localtime &>> $LOG
+    ln -s /usr/share/zoneinfo/America/Bahia /etc/localtime &>> $LOG
+    yum -y install ntp &>> $LOG
+    ntpdate -d cn.pool.ntp.org &>> $LOG
+    ntpdate -v time.nist.gov &>> $LOG
+    /sbin/hwclock -w &>> $LOG
 }
 
 # Install Apache
 install_apache(){
     # Install Apache
     echo "Start Installing Apache..."
-    yum -y install httpd
-    cp -f $cur_dir/conf/httpd.conf /etc/httpd/conf/httpd.conf
-    rm -fv /etc/httpd/conf.d/welcome.conf /data/www/error/noindex.html
-    chkconfig httpd on
-    mkdir -p /data/www/default
-    chown -R apache:apache /data/www/default
-    touch /etc/httpd/conf.d/none.conf
-    cp -f $cur_dir/conf/index.html /data/www/default/
-    cp -f $cur_dir/conf/index_cn.html /data/www/default/
-    cp -f $cur_dir/conf/lamp.gif /data/www/default/
-    cp -f $cur_dir/conf/p.php /data/www/default/
-    cp -f $cur_dir/conf/p_cn.php /data/www/default/
-    cp -f $cur_dir/conf/jquery.js /data/www/default/
-    cp -f $cur_dir/conf/phpinfo.php /data/www/default/
+    yum -y install httpd &>> $LOG
+    cp -f $cur_dir/conf/httpd.conf /etc/httpd/conf/httpd.conf &>> $LOG
+    rm -fv /etc/httpd/conf.d/welcome.conf /data/www/error/noindex.html &>> $LOG
+    chkconfig httpd on &>> $LOG
+    mkdir -p /data/www/default &>> $LOG
+    chown -R apache:apache /data/www/default &>> $LOG
+    touch /etc/httpd/conf.d/none.conf &>> $LOG
+    cp -f $cur_dir/conf/index.html /data/www/default/ &>> $LOG
+    cp -f $cur_dir/conf/index_cn.html /data/www/default/ &>> $LOG
+    cp -f $cur_dir/conf/lamp.gif /data/www/default/ &>> $LOG
+    cp -f $cur_dir/conf/p.php /data/www/default/ &>> $LOG
+    cp -f $cur_dir/conf/p_cn.php /data/www/default/ &>> $LOG
+    cp -f $cur_dir/conf/jquery.js /data/www/default/ &>> $LOG
+    cp -f $cur_dir/conf/phpinfo.php /data/www/default/ &>> $LOG
     echo "Apache Install completed!"
 }
 
 # Install database
 install_database(){
     if [ $DB_version -eq 1 ]; then
-        install_mysql
-    elif [ $DB_version -eq 2 ]; then
+        install_mysql55
+	elif [ $DB_version -eq 2 ]; then
+        install_mysql80
+    elif [ $DB_version -eq 3 ]; then
         install_mariadb
     fi
 }
-
-# Install MariaDB
-install_mariadb(){
-    # Install MariaDB
-    echo "Start Installing MariaDB..."
-    yum -y install mariadb mariadb-server
-    cp -f $cur_dir/conf/my.cnf /etc/my.cnf
-    chkconfig mysqld on
-    # Start mysqld service
-    service mysqld start
-    /usr/bin/mysqladmin password $dbrootpwd
-    /usr/bin/mysql -uroot -p$dbrootpwd <<EOF
-drop database if exists test;
-delete from mysql.user where user='';
-update mysql.user set password=password('$dbrootpwd') where user='root';
-delete from mysql.user where not (user='root') ;
-flush privileges;
-exit
+#===========================================DATABASES_VERSIONS===========================================
+install_mysql55(){
+    #----------------------Install MySQL55----------------------
+    echo "Start Installing MySQL 5.5..."
+    yum install http://repo.mysql.com/yum/mysql-5.5-community/el/7/x86_64/mysql-community-release-el7-5.noarch.rpm &>> $LOG
+    yum -y install mysql mysql-server &>> $LOG
+    rpm -qa | grep -i mysql-community &>> $LOG
+    cp -f $cur_dir/conf/my.cnf /etc/my.cnf &>> $LOG
+    chkconfig mysqld on &>> $LOG
+    # Resume mysqld service
+    systemctl start mysqld &>> $LOG
+    systemctl enable mysqld &>> $LOG
+    /usr/bin/mysqladmin password $dbrootpwd &>> $LOG
+    /usr/bin/mysql -uroot -p$dbrootpwd <<EOF &>> $LOG
+    drop database if exists test;
+    delete from mysql.user where user='';
+    update mysql.user set password=password('$dbrootpwd') where user='root';
+    delete from mysql.user where not (user='root') ;
+    flush privileges;
+    exit
 EOF
-    echo "MariaDB Install completed!"
-}
-
-# Install MySQL
-install_mysql(){
-    # Install MySQL
-    echo "Start Installing MySQL..."
-    yum -y install mysql mysql-server
-    cp -f $cur_dir/conf/my.cnf /etc/my.cnf
-    chkconfig mysqld on
-    # Start mysqld service
-    service mysqld start
-    /usr/bin/mysqladmin password $dbrootpwd
-    /usr/bin/mysql -uroot -p$dbrootpwd <<EOF
-drop database if exists test;
-delete from mysql.user where user='';
-update mysql.user set password=password('$dbrootpwd') where user='root';
-delete from mysql.user where not (user='root') ;
-flush privileges;
-exit
-EOF
+    systemctl restart mysqld &>> $LOG
     echo "MySQL Install completed!"
 }
-
-# Install PHP
+#
+install_mysql80(){
+    #----------------------Install MySQL80----------------------
+    echo "Start Installing MySQL 8.0clear..."
+    yum install http://repo.mysql.com/yum/mysql-8.0-community/el/8/x86_64/mysql80-community-release-el8-1.noarch.rpm &>> $LOG
+    yum -y install mysql mysql-server &>> $LOG
+    cp -f $cur_dir/conf/my.cnf /etc/my.cnf &>> $LOG
+    chkconfig mysqld on &>> $LOG
+    # Start mysqld service
+    systemctl start mysqld &>> $LOG
+    systemctl enable mysqld &>> $LOG
+    /usr/bin/mysqladmin password $dbrootpwd &>> $LOG
+    /usr/bin/mysql -uroot -p$dbrootpwd <<EOF &>> $LOG
+    drop database if exists test;
+    delete from mysql.user where user='';
+    update mysql.user set password=password('$dbrootpwd') where user='root';
+    delete from mysql.user where not (user='root') ;
+    flush privileges;
+    exit
+EOF
+    systemctl restart mysqld &>> $LOG
+    echo "MySQL Install completed!"
+}
+#
+install_mariadb(){
+    #----------------------Install MariaDB----------------------
+    echo "Start Installing MariaDB..."
+    yum -y install mariadb mariadb-server &>> $LOG
+    cp -f $cur_dir/conf/my.cnf /etc/my.cnf &>> $LOG
+    chkconfig mariadb on &>> $LOG
+    # Start mysqld service
+    systemctl start maridb &>> $LOG
+    systemctl enable mariadb &>> $LOG
+    /usr/bin/mysqladmin password $dbrootpwd &>> $LOG
+    /usr/bin/mysql -uroot -p$dbrootpwd <<EOF &>> $LOG
+    drop database if exists test;
+    delete from mysql.user where user='';
+    update mysql.user set password=password('$dbrootpwd') where user='root';
+    delete from mysql.user where not (user='root') ;
+    flush privileges;
+    exit
+EOF
+    systemctl restart mariadb &>> $LOG
+    echo "MariaDB Install completed!"
+}
+#===========================================Install_PHP_VERSIONS===========================================
 install_php(){
     echo "Start Installing PHP..."
     yum -y install libjpeg-devel libpng-devel
     if [ $PHP_version -eq 1 ]; then
-        yum -y install php php-cli php-common php-devel php-pdo php-mysqlnd php-mcrypt php-mbstring php-xml php-xmlrpc
-        yum -y install php-gd php-bcmath php-imap php-odbc php-ldap php-mhash php-intl
-        yum -y install php-xcache php-ioncube-loader php-zend-guard-loader php-snmp php-soap php-tidy
+        yum-config-manager --disable 'remi-php*' &>> $LOG
+        yum-config-manager --enable   remi-php54 &>> $LOG
+        yum -y update &>> $LOG
+        yum -y install php54-php-{bcmath,bz2,cli,common,curl,fpm,devel,domxml,gd,gettext,imap,intl,json,jpeg,ldap \
+        mbstring,mcrypt,mhash,mysqlnd,openssl,pear,pdo,xml,xmlrpc,zip} &>> $LOG
     fi
     if [ $PHP_version -eq 2 ]; then
-        yum -y install atomic-php55-php atomic-php55-php-cli atomic-php55-php-common atomic-php55-php-devel atomic-php55-php-pdo atomic-php55-php-mysqlnd atomic-php55-php-mcrypt atomic-php55-php-mbstring atomic-php55-php-xml atomic-php55-php-xmlrpc
-        yum -y install atomic-php55-php-gd atomic-php55-php-bcmath atomic-php55-php-imap atomic-php55-php-odbc atomic-php55-php-ldap atomic-php55-php-mhash atomic-php55-php-intl
-        yum -y install atomic-php55-php-snmp atomic-php55-php-soap atomic-php55-php-tidy atomic-php55-php-opcache
-        # Fix php for httpd configuration
-        cat > /etc/httpd/conf.d/php55.conf<<EOF
-<IfModule prefork.c>
-  LoadModule php5_module modules/libphp55.so
-</IfModule>
-<IfModule !prefork.c>
-  LoadModule php5_module modules/libphp55-zts.so
-</IfModule>
-AddType text/html .php
-DirectoryIndex index.php
-<IfModule  mod_php5.c>
-    <FilesMatch \.php$>
-        SetHandler application/x-httpd-php
-    </FilesMatch>
-    php_value session.save_handler "files"
-    php_value session.save_path    "/var/lib/php/session"
-    php_value soap.wsdl_cache_dir  "/var/lib/php/wsdlcache"
-</IfModule>
-EOF
+	#PHP 55
+        yum-config-manager --disable 'remi-php*' &>> $LOG
+        yum-config-manager --enable   remi-php55 &>> $LOG
+        yum -y update &>> $LOG
+        yum -y install php55-php-{bcmath,bz2,cli,common,curl,fpm,devel,domxml,gd,gettext,imap,intl,json,jpeg,ldap \
+        mbstring,mcrypt,mhash,mysqlnd,openssl,pear,pdo,xml,xmlrpc,zip} &>> $LOG
     fi
     if [ $PHP_version -eq 3 ]; then
-        yum -y install atomic-php56-php atomic-php56-php-cli atomic-php56-php-common atomic-php56-php-devel atomic-php56-php-pdo atomic-php56-php-mysqlnd atomic-php56-php-mcrypt atomic-php56-php-mbstring atomic-php56-php-xml atomic-php56-php-xmlrpc
-        yum -y install atomic-php56-php-gd atomic-php56-php-bcmath atomic-php56-php-imap atomic-php56-php-odbc atomic-php56-php-ldap atomic-php56-php-mhash atomic-php56-php-intl
-        yum -y install atomic-php56-php-snmp atomic-php56-php-soap atomic-php56-php-tidy atomic-php56-php-opcache
-        # Fix php for httpd configuration
-        cat > /etc/httpd/conf.d/php56.conf<<EOF
-<IfModule prefork.c>
-  LoadModule php5_module modules/libphp56.so
-</IfModule>
-<IfModule !prefork.c>
-  LoadModule php5_module modules/libphp56-zts.so
-</IfModule>
-AddHandler php5-script .php
-AddType text/html .php
-DirectoryIndex index.php
-<IfModule  mod_php5.c>
-    <FilesMatch \.php$>
-        SetHandler application/x-httpd-php
-    </FilesMatch>
-    php_value session.save_handler "files"
-    php_value session.save_path    "/var/lib/php/session"
-    php_value soap.wsdl_cache_dir  "/var/lib/php/wsdlcache"
-</IfModule>
-EOF
+	#PHP 56
+        yum-config-manager --disable 'remi-php*' &>> $LOG
+        yum-config-manager --enable   remi-php56 &>> $LOG
+        yum -y update
+        yum -y install php56-php-{bcmath,bz2,cli,common,curl,fpm,devel,domxml,gd,gettext,imap,intl,json,jpeg,ldap \
+        mbstring,mcrypt,mhash,mysqlnd,openssl,pear,pdo,xml,xmlrpc,zip} &>> $LOG
     fi
     if [ $PHP_version -eq 4 ]; then
-        yum -y install atomic-php70-php atomic-php70-php-cli atomic-php70-php-common atomic-php70-php-devel atomic-php70-php-pdo atomic-php70-php-mysqlnd atomic-php70-php-mcrypt atomic-php70-php-mbstring atomic-php70-php-xml atomic-php70-php-xmlrpc
-        yum -y install atomic-php70-php-gd atomic-php70-php-bcmath atomic-php70-php-imap atomic-php70-php-odbc atomic-php70-php-ldap atomic-php70-php-json atomic-php70-php-intl
-        yum -y install atomic-php70-php-gmp atomic-php70-php-snmp atomic-php70-php-soap atomic-php70-php-tidy atomic-php70-php-opcache atomic-php70-php-enchant
-        # Fix php for httpd configuration
-        cat > /etc/httpd/conf.d/php70.conf<<EOF
-<IfModule !mod_php5.c>
-  <IfModule prefork.c>
-    LoadModule php7_module modules/libatomic_php70.so
-  </IfModule>
-</IfModule>
-AddType text/html .php
-DirectoryIndex index.php
-<IfModule  mod_php7.c>
-    <FilesMatch \.php$>
-        SetHandler application/x-httpd-php
-    </FilesMatch>
-    php_value session.save_handler "files"
-    php_value session.save_path    "/opt/atomic/atomic_php70/root/var/lib/php/session"
-    php_value soap.wsdl_cache_dir  "/opt/atomic/atomic_php70/root/var/lib/php/wsdlcache"
-</IfModule>
-EOF
+	#PHP 74
+        yum-config-manager --disable 'remi-php*' &>> $LOG
+        yum-config-manager --enable  remi-php74 &>> $LOG
+        yum -y update &>> $LOG
+        yum -y install php74-php-{bcmath,bz2,cli,common,curl,fpm,devel,domxml,gd,gettext,imap,intl,json,jpeg,ldap \
+        mbstring,mcrypt,mhash,mysqlnd,openssl,pear,pdo,xml,xmlrpc,zip} &>> $LOG
     fi
-    cp -f $cur_dir/conf/php.ini /etc/php.ini
+    if [ $PHP_version -eq 5 ]; then
+	#PHP 80
+        yum-config-manager --disable 'remi-php*' &>> $LOG
+        yum-config-manager --enable   remi-php80 &>> $LOG
+        yum -y update &>> $LOG
+        yum -y install php80-php-{bcmath,bz2,cli,common,curl,fpm,devel,domxml,gd,gettext,imap,intl,json,jpeg,ldap \
+        mbstring,mcrypt,mhash,mysqlnd,openssl,pear,pdo,xml,xmlrpc,zip} &>> $LOG
+    fi
+    cp -f $cur_dir/conf/php.ini /etc/php.ini &>> $LOG
     echo "PHP install completed!"
 }
 
-# Install phpmyadmin.
+#===========================================INSTALL_phpMyAdmin===========================================
 install_phpmyadmin(){
     if [ ! -d /data/www/default/phpmyadmin ];then
         echo "Start Installing phpMyAdmin..."
         LATEST_PMA=$(wget --no-check-certificate -qO- https://www.phpmyadmin.net/files/ | awk -F\> '/\/files\//{print $3}' | cut -d'<' -f1 | sort -V | tail -1)
         if [[ -z $LATEST_PMA ]]; then
-            LATEST_PMA=$(wget -qO- http://dl.lamp.sh/pmalist.txt | tail -1 | awk -F- '{print $2}')
+            LATEST_PMA=$(wget -qO- http://dl.lamp.sh/pmalist.txt | tail -1 | awk -F- '{print $2}') &>> $LOG
         fi
         echo -e "Installing phpmyadmin version: \033[41;37m $LATEST_PMA \033[0m"
-        cd $cur_dir
+        cd $cur_dir &>> $LOG
         if [ -s phpMyAdmin-${LATEST_PMA}-all-languages.tar.gz ]; then
             echo "phpMyAdmin-${LATEST_PMA}-all-languages.tar.gz [found]"
         else
-            wget -c http://files.phpmyadmin.net/phpMyAdmin/${LATEST_PMA}/phpMyAdmin-${LATEST_PMA}-all-languages.tar.gz
-            tar zxf phpMyAdmin-${LATEST_PMA}-all-languages.tar.gz
+            wget -c http://files.phpmyadmin.net/phpMyAdmin/${LATEST_PMA}/phpMyAdmin-${LATEST_PMA}-all-languages.tar.gz &>> $LOG
+            tar zxf phpMyAdmin-${LATEST_PMA}-all-languages.tar.gz &>> $LOG
         fi
-        mv phpMyAdmin-${LATEST_PMA}-all-languages /data/www/default/phpmyadmin
-        cp -f $cur_dir/conf/config.inc.php /data/www/default/phpmyadmin/config.inc.php
+        mv phpMyAdmin-${LATEST_PMA}-all-languages /data/www/default/phpmyadmin &>> $LOG
+        cp -f $cur_dir/conf/config.inc.php /data/www/default/phpmyadmin/config.inc.php &>> $LOG
         #Create phpmyadmin database
-        /usr/bin/mysql -uroot -p$dbrootpwd < /data/www/default/phpmyadmin/sql/create_tables.sql
-        mkdir -p /data/www/default/phpmyadmin/upload/
-        mkdir -p /data/www/default/phpmyadmin/save/
-        cp -f /data/www/default/phpmyadmin/sql/create_tables.sql /data/www/default/phpmyadmin/upload/
-        chown -R apache:apache /data/www/default/phpmyadmin
-        rm -f phpMyAdmin-${LATEST_PMA}-all-languages.tar.gz
+        /usr/bin/mysql -uroot -p$dbrootpwd < /data/www/default/phpmyadmin/sql/create_tables.sql &>> $LOG
+        mkdir -p /data/www/default/phpmyadmin/upload/ &>> $LOG
+        mkdir -p /data/www/default/phpmyadmin/save/ &>> $LOG
+        cp -f /data/www/default/phpmyadmin/sql/create_tables.sql /data/www/default/phpmyadmin/upload/ &>> $LOG
+        chown -R apache:apache /data/www/default/phpmyadmin &>> $LOG
+        rm -f phpMyAdmin-${LATEST_PMA}-all-languages.tar.gz &>> $LOG
         echo "PHPMyAdmin Install completed!"
     else
         echo "PHPMyAdmin had been installed!"
     fi
     #Start httpd service
-    service httpd start
+    systemctl start httpd &>> $LOG
 }
 
-# Uninstall lamp
+#===========================================Uninstall_LAMP===========================================
 uninstall_lamp(){
     echo "Warning! All of your data will be deleted..."
     echo "Are you sure uninstall LAMP? (y/n)"
-    read -p "(Default: n):" uninstall
+    read -p "(Default: n):" uninstall &>> $LOG
     if [ -z $uninstall ]; then
-        uninstall="n"
+        uninstall="n" &>> $LOG
     fi
     if [[ "$uninstall" = "y" || "$uninstall" = "Y" ]]; then
         clear
@@ -356,28 +378,32 @@ uninstall_lamp(){
     if [[ "$uninstall" = "y" || "$uninstall" = "Y" ]]; then
         cd ~
         CHECK_MARIADB=$(mysql -V | grep -i 'MariaDB')
-        service httpd stop
-        service mysqld stop
-        yum -y remove httpd*
+        service httpd stop &>> $LOG
+        service mysqld stop &>> $LOG
+        yum -y remove httpd* &>> $LOG
         if [ -z $CHECK_MARIADB ]; then
-            yum -y remove mysql*
+            yum -y remove mysql* &>> $LOG
         else
-            yum -y remove mariadb*
+            yum -y remove mariadb* &>> $LOG
         fi
-        if [ -s /usr/bin/atomic-php55-php ]; then
-            yum -y remove atomic-php55-php*
+        if [ -s /usr/bin/atomic-php54-php ]; then
+            yum -y remove atomic-php54-php* &>> $LOG
+        elif [ -s /usr/bin/atomic-php55-php ]; then
+            yum -y remove atomic-php55-php* &>> $LOG
         elif [ -s /usr/bin/atomic-php56-php ]; then
-            yum -y remove atomic-php56-php*
-        elif [ -s /usr/bin/atomic_php70 ]; then
-            yum -y remove atomic-php70-php*
+            yum -y remove atomic-php56-php* &>> $LOG
+        elif [ -s /usr/bin/atomic_php74 ]; then
+            yum -y remove atomic-php74-php* &>> $LOG
+        elif [ -s /usr/bin/atomic-php80-php ]; then
+            yum -y remove atomic-php80-php* &>> $LOG
         else
-            yum -y remove php*
+            yum -y remove php* &>> $LOG
         fi
-        rm -rf /data/www/default/phpmyadmin
-        rm -rf /etc/httpd
-        rm -f /usr/bin/lamp
-        rm -f /etc/my.cnf.rpmsave
-        rm -f /etc/php.ini.rpmsave
+        rm -rf /data/www/default/phpmyadmin &>> $LOG
+        rm -rf /etc/httpd &>> $LOG
+        rm -f /usr/bin/lamp &>> $LOG
+        rm -f /etc/my.cnf.rpmsave &>> $LOG
+        rm -f /etc/php.ini.rpmsave &>> $LOG
         echo "Successfully uninstall LAMP!!"
     else
         echo
@@ -386,7 +412,7 @@ uninstall_lamp(){
     fi
 }
 
-# Add apache virtualhost
+#===========================================ADD_Apache_Virtualhost===========================================
 vhost_add(){
     #Define domain name
     read -p "(Please input domains such as:www.example.com):" domains
@@ -429,13 +455,13 @@ EOF
     esac
     done
 
-    #Create database
+    #===========================================Create DATABASE===========================================
     if [ "$create" == "y" ];then
         /usr/bin/mysql -uroot -p$mysqlroot_passwd  <<EOF
-CREATE DATABASE IF NOT EXISTS \`$dbname\`;
-GRANT ALL PRIVILEGES ON \`$dbname\` . * TO '$dbname'@'localhost' IDENTIFIED BY '$mysqlpwd';
-GRANT ALL PRIVILEGES ON \`$dbname\` . * TO '$dbname'@'127.0.0.1' IDENTIFIED BY '$mysqlpwd';
-FLUSH PRIVILEGES;
+    CREATE DATABASE IF NOT EXISTS \`$dbname\`;
+    GRANT ALL PRIVILEGES ON \`$dbname\` . * TO '$dbname'@'localhost' IDENTIFIED BY '$mysqlpwd';
+    GRANT ALL PRIVILEGES ON \`$dbname\` . * TO '$dbname'@'127.0.0.1' IDENTIFIED BY '$mysqlpwd';
+    FLUSH PRIVILEGES;
 EOF
     fi
     #Define website dir
@@ -446,22 +472,22 @@ EOF
     chown -R apache:apache $webdir
     #Create vhost configuration file
     cat >/etc/httpd/conf.d/$domain.conf<<EOF
-<virtualhost *:80>
-ServerName  $domain
-ServerAlias  $domains 
-DocumentRoot  $DocumentRoot
-CustomLog $logsdir/access.log combined
-DirectoryIndex index.php index.html
-<Directory $DocumentRoot>
-Options +Includes -Indexes
-AllowOverride All
-Order Deny,Allow
-Allow from All
-php_admin_value open_basedir $DocumentRoot:/tmp
-</Directory>
-</virtualhost>
+    <virtualhost *:80>
+    ServerName  $domain
+    ServerAlias  $domains 
+    DocumentRoot  $DocumentRoot
+    CustomLog $logsdir/access.log combined
+    DirectoryIndex index.php index.html
+    <Directory $DocumentRoot>
+    Options +Includes -Indexes
+    AllowOverride All
+    Order Deny,Allow
+    Allow from All
+    php_admin_value open_basedir $DocumentRoot:/tmp
+    </Directory>
+    </virtualhost>
 EOF
-    service httpd restart > /dev/null 2>&1
+    systemctl restart httpd > /dev/null 2>&1
     echo "Successfully create $domain vhost"
     echo "######################### information about your website ############################"
     echo "The DocumentRoot:$DocumentRoot"
@@ -469,7 +495,7 @@ EOF
     [ "$create" == "y" ] && echo "database name and user:$dbname and password:$mysqlpwd"
 }
 
-# Remove apache virtualhost
+#===========================================Remove_Apache_Virtualhost===========================================
 vhost_del(){
     read -p "(Please input a domain you want to delete):" vhost_domain
     if [ "$vhost_domain" = "" ]; then
@@ -493,16 +519,38 @@ vhost_del(){
         exit 1
     fi
 
-    service httpd restart
+    systemctl restart httpd
     echo "Successfully delete $vhost_domain vhost"
 }
 
-# List apache virtualhost
+#===========================================List_apache_virtualhost===========================================
 vhost_list(){
     ls /etc/httpd/conf.d/ | grep -v "php.conf" | grep -v "none.conf" | grep -v "welcome.conf" | grep -iv "README" | awk -F".conf" '{print $1}'
 }
 
-# Install LAMP Script
+#===========================================Enable_selinux===========================================
+enable_selinux(){
+if [ -s /etc/selinux/config ] && grep 'SELINUX=enforcing' /etc/selinux/config; then
+    sed -i 's/SELINUX=enforcing/SELINUX=enforcing/g' /etc/selinux/config
+    setenforce 0
+fi
+}
+#===========================================Firewall_settings===========================================
+security_settings(){
+    yum list installed | grep "firewalld" &>/dev/null
+    if [ $? -ne 0 ]; then
+        yum -y install firewalld | bash
+        systemctl start firewalld | bash
+        systemctl enable firewalld | bash
+    fi
+    firewall-cmd --remove-service=dhcpv6-client --permanent
+    firewall-cmd --add-service=http --permanent
+    firewall-cmd --add-service=https --permanent
+    firewall-cmd --add-service=mysql --permanent 
+    firewall-cmd --reload
+}
+
+#===========================================Install_LAMP_Script===========================================
 install_lamp(){
     rootness
     disable_selinux
@@ -511,6 +559,8 @@ install_lamp(){
     install_database
     install_php
     install_phpmyadmin
+    enable_selinux
+    security_settings
     cp -f $cur_dir/lamp.sh /usr/bin/lamp
     chmod +x /usr/bin/lamp
     clear
@@ -520,12 +570,28 @@ install_lamp(){
     echo 'Default WebSite Root Dir: /data/www/default'
     echo "MySQL root password:$dbrootpwd"
     echo
-    echo "Welcome to visit:https://teddysun.com/lamp-yum"
+    echo "This version is a copy of the Teddsun's project."
+    echo "Be a guest to visit original project on:https://teddysun.com/lamp-yum"
     echo "Enjoy it! "
-    echo
+    
+    # script para calcular o tempo gasto (SCRIPT MELHORADO, CORRIGIDO FALHA DE HORA:MINUTO:SEGUNDOS)
+    # opção do comando date: +%T (Time)
+    HORAFINAL=`date +%T`
+    # opção do comando date: -u (utc), -d (date), +%s (second since 1970)
+    HORAINICIAL01=$(date -u -d "$HORAINICIAL" +"%s")
+    HORAFINAL01=$(date -u -d "$HORAFINAL" +"%s")
+    # opção do comando date: -u (utc), -d (date), 0 (string command), sec (force second), +%H (hour), %M (minute), %S (second), 
+    TEMPO=`date -u -d "0 $HORAFINAL01 sec - $HORAINICIAL01 sec" +"%H:%M:%S"`
+    # $0 (variável de ambiente do nome do comando)
+    echo -e "Tempo gasto para execução do script $0: $TEMPO"
+    echo -e "Pressione <Enter> para concluir o processo."
+    # opção do comando date: + (format), %d (day), %m (month), %Y (year 1970), %H (hour 24), %M (minute 60)
+    echo -e "Fim do script $0 em: `date +%d/%m/%Y-"("%H:%M")"`\n" &>> $LOG
+    read
+    exit 1
 }
 
-# Initialization step
+#===========================================Initialization_step===========================================
 action=$1
 [ -z $1 ] && action=install
 case "$action" in

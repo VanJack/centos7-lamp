@@ -1,4 +1,4 @@
-![LAMP](https://github.com/teddysun/lamp-yum/raw/master/conf/lamp.gif)
+![LAMP](https://github.com/VanJack/centos7-lamp/raw/master/conf/lamp.gif)
 
 Description
 ===========
@@ -30,9 +30,9 @@ Installation
 ============
 ```bash
 yum -y install wget unzip
-wget --no-check-certificate -O lamp-yum.zip https://github.com/teddysun/lamp-yum/archive/master.zip
-unzip lamp-yum.zip
-cd lamp-yum-master
+wget --no-check-certificate -O centos7-lamp.zip https://github.com/VanJack/centos7-lamp/archive/master.zip
+unzip centos7-lamp.zip
+cd centos7-lamp-master
 chmod +x *.sh
 ./lamp.sh 2>&1 | tee lamp.log
 ```
@@ -77,6 +77,6 @@ Process Management
 
 License
 =======
-Copyright (C) 2014 - 2018 Teddysun
+Copyright (C) 2014 - 2021 Teddysun
 
 Licensed under the [GPLv3](LICENSE) License.
