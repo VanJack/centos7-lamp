@@ -68,7 +68,7 @@ pre_installation_settings(){
     # Install Epel repository
     rpm -qa | grep "epel-release" &>/dev/null &>> $LOG
     if [ $? -ne 0 ]; then
-        yum install epel-release | bash &>> $LOG
+        yum -y install epel-release | bash &>> $LOG
         rpm -Uvh https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm | bash &>> $LOG
     fi
 	# Install REMI repository
@@ -79,15 +79,14 @@ pre_installation_settings(){
 	# Install SCLs repository
 	rpm -qa | grep "scl-release" &>/dev/null &>> $LOG
     if [ $? -ne 0 ]; then
-	yum install centos-release-scl	| bash &>> $LOG
+	yum -y install centos-release-scl	| bash &>> $LOG
 	fi
 	# Install IUS repository
 	rpm -qa | grep "ius-release" &>/dev/null &>> $LOG
     if [ $? -ne 0 ]; then
-	yum install \
-		https://repo.ius.io/ius-release-el7.rpm \
-		https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm	| bash &>> $LOG
-		yum-config-manager --enable ius-testing &>> $LOG
+	yum -y install https://repo.ius.io/ius-release-el7.rpm 	| bash &>> $LOG
+	yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm	| bash &>> $LOG
+	yum-config-manager --enable ius-testing &>> $LOG
 	fi
 	#
     echo "Getting Public IP address..."
@@ -155,14 +154,14 @@ pre_installation_settings(){
     echo "Press any key to start...or Press Ctrl+C to cancel"
     char=`get_char`
     # Remove Packages
-    yum -y remove httpd* &>> $LOG
-    yum -y remove mysql* &>> $LOG
-    yum -y remove mariadb* &>> $LOG
-    yum -y remove php* &>> $LOG
-    yum -y remove phpmyadmin* &>> $LOG
+    yum -y remove httpd*        &>> $LOG
+    yum -y remove mysql*        &>> $LOG
+    yum -y remove mariadb*      &>> $LOG
+    yum -y remove php*          &>> $LOG
+    yum -y remove phpmyadmin*   &>> $LOG
 
     # Set timezone
-    rm -f /etc/localtime &>> $LOG
+    rm -f /etc/localtime  &>> $LOG
     ln -s /usr/share/zoneinfo/America/Bahia /etc/localtime &>> $LOG
     yum -y install ntp &>> $LOG
     ntpdate -d cn.pool.ntp.org &>> $LOG
@@ -229,7 +228,7 @@ EOF
 install_mysql80(){
     #----------------------Install MySQL80----------------------
     echo "Start Installing MySQL 8.0clear..."
-    yum install http://repo.mysql.com/yum/mysql-8.0-community/el/8/x86_64/mysql80-community-release-el8-1.noarch.rpm &>> $LOG
+    yum -y install http://repo.mysql.com/yum/mysql-8.0-community/el/8/x86_64/mysql80-community-release-el8-1.noarch.rpm &>> $LOG
     yum -y install mysql mysql-server &>> $LOG
     cp -f $cur_dir/conf/my.cnf /etc/my.cnf &>> $LOG
     chkconfig mysqld on &>> $LOG
